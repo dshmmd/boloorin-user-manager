@@ -1,0 +1,23 @@
+{% extends 'status/index.html' %}
+{% load static %}
+
+{% block container %}
+    <h1>Enter the Information</h1>
+    <form method="post" id="loginForm">
+        {% csrf_token %}
+
+        <p>
+            <label for="id_username">Username</label>
+            <input type="text" name="username" autofocus autocapitalize="none" autocomplete="username" maxlength="150"
+                   required id="id_username">
+        </p>
+        <p>
+            <label for="id_password">Password</label>
+            <input type="password" name="password" autocomplete="current-password" required id="id_password">
+        </p>
+    </form>
+    <div class="button-container">
+        <button class="button primary-button" form="loginForm" type="submit">Login</button>
+        <button class="button secondary-button" onclick="location.href='{% url 'home' %}'">Home</button>
+    </div>
+{% endblock container %}

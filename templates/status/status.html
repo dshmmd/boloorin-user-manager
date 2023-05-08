@@ -1,0 +1,39 @@
+{% extends 'status/index.html' %}
+{% load static %}
+
+{% block container %}
+
+    {% if servers %}
+        <h2>Latest Status</h2>
+        <table>
+        <tr>
+            <th>Owner</th>
+            <th>Server</th>
+            <th>Disable Users</th>
+        </tr>
+
+        {% for server in servers %}
+            <tr>
+                <td>{{ server.owner }}</td>
+                <td>{{ server.name }}</td>
+                <td>{{ server.last_disabled_users }}</td>
+            </tr>
+        {% endfor %}
+    {% else %}
+    	<h1>{{ request.user }}, Ready to Check...</h1>
+    {% endif %}
+
+</table>
+    <div class="button-container">
+        <button class="button primary-button" onclick="location.href='{% url 'check_status' %}{{ '?start=true' }}'">
+            Check
+        </button>
+        <button class="button secondary-button" onclick="location.href={% url 'logout_view' %}">Logout</button>
+    </div>
+{% endblock container %}
+
+{#<div id="container">#}
+{#    <div id="text">Hover over me to see the buttons</div>#}
+{#    <button class="btn" id="btn1">Button 1</button>#}
+{#    <button class="btn" id="btn2">Button 2</button>#}
+{#</div>#}
