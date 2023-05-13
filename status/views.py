@@ -73,12 +73,12 @@ def check_status(request):
                         remaining_credit = get_remaining_credit(i['expiryTime'])
                         remaining_traffic = get_remaining_traffic(i['up'], i['down'], i['total'])
                         
-                        if remaining_traffic == 0:
+                        if round(remaining_traffic, 1) == 0.0:
                             status = f"{remark}({remaining_traffic} GB left)"
                         elif remaining_credit >= 0:
                             status = f"{remark}({remaining_credit} days left)"
                         else:
-                            status = f"{remark}({remaining_credit} days passed)"
+                            status = f"{remark}({-remaining_credit} days passed)"
                         users.append(status)
 
                 server.last_disabled_users = ', '.join(users)
