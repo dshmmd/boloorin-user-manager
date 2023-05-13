@@ -73,10 +73,12 @@ def check_status(request):
                         remaining_credit = get_remaining_credit(i['expiryTime'])
                         remaining_traffic = get_remaining_traffic(i['up'], i['down'], i['total'])
                         
-                        if remaining_credit == 0:
+                        if remaining_traffic == 0:
                             status = f"{remark}({remaining_traffic} GB left)"
-                        else:
+                        elif remaining_credit >= 0:
                             status = f"{remark}({remaining_credit} days left)"
+                        else:
+                            status = f"{remark}({remaining_credit} days passed)"
                         users.append(status)
 
                 server.last_disabled_users = ', '.join(users)
@@ -104,11 +106,11 @@ def get_remaining_traffic(up, down, total):
     total = total / 2 ** 30
     return abs(round(total - up - down, 1))
 
+
 def get_remaining_credit(expiry_time):
     now = datetime.now()
     expiration = datetime.fromtimestamp(expiry_time / 1000)
-    days = (expiration - now).days
-    return days if days > 0 else 0
+    return (expiration - now).days
 
 
 def get_inbounds_list(host, set_cookie):
