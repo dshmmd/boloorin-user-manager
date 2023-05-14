@@ -75,8 +75,10 @@ def check_status(request):
                         
                         if round(remaining_traffic, 1) != 0.0:
                             status = f"{remark}({remaining_traffic} GB left)"
-                        elif remaining_credit >= 0:
+                        elif remaining_credit > 0:
                             status = f"{remark}({remaining_credit} days left)"
+                        elif remaining_credit == 0:
+                            status = f"{remark}(Nothing left)"
                         else:
                             status = f"{remark}({-remaining_credit} days passed)"
                         users.append(status)
