@@ -73,7 +73,7 @@ def check_status(request):
                         remaining_credit = get_remaining_credit(i['expiryTime'])
                         remaining_traffic = get_remaining_traffic(i['up'], i['down'], i['total'])
                         
-                        if round(remaining_traffic, 1) == 0.0:
+                        if round(remaining_traffic, 1) != 0.0:
                             status = f"{remark}({remaining_traffic} GB left)"
                         elif remaining_credit >= 0:
                             status = f"{remark}({remaining_credit} days left)"
