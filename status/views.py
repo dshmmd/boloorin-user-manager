@@ -77,10 +77,8 @@ def check_status(request):
                             status = f"{remark}({remaining_traffic} GB left)"
                         elif remaining_credit > 0:
                             status = f"{remark}({remaining_credit} days left)"
-                        elif remaining_credit == 0:
-                            status = f"{remark}(Nothing left)"
                         else:
-                            status = f"{remark}({-remaining_credit} days passed)"
+                            status = f"{remark}(Nothing left)"
                         users.append(status)
 
                 server.last_disabled_users = ', '.join(users)
