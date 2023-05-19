@@ -11,6 +11,28 @@ from django.db.models import Q
 from operator import attrgetter
 
 
+class Inbound:
+    inbounds = []
+
+    def __init__(self, remark, inbound_id, port, protocol, settings, stream_settings, sniffing, remaining_status):
+        self.inbound_id = inbound_id
+        self.remark = remark
+        self.port = port
+        self.protocol = protocol
+        self.settings = settings
+        self.stream_settings = stream_settings
+        self.sniffing = sniffing
+        self.remaining_status = remaining_status
+        self.inbounds.append(self)
+
+    def __str__(self):
+        return self.remark
+
+    @classmethod
+    def get_inbound_by_id(cls, inbound_id):
+        return [inbound for inbound in cls.inbounds if inbound.inbound_id == inbound_id]
+
+
 def home(request):
     return render(request, 'status/home.html')
 
@@ -47,6 +69,7 @@ def check_status(request):
             servers = Server.objects.filter(Q(owner=request.user) | Q(viewer=request.user))
         servers = sorted(servers, key=attrgetter('username', 'sort_number'))
 
+        servers_context = []
         for server in servers:
             now = timezone.now()
             set_cookie = server.set_cookie
@@ -67,47 +90,50 @@ def check_status(request):
             try:
                 inbounds = get_inbounds_list(server.host, set_cookie)
                 users = []
-                for i in inbounds:
-                    remark = i['remark']
-                    if not i["enable"]:
-                        remaining_credit = get_remaining_credit(i['expiryTime'])
-                        remaining_traffic = get_remaining_traffic(i['up'], i['down'], i['total'])
-                        
-                        if round(remaining_traffic, 1) != 0.0:
+                for inbound in inbounds:
+                    if not inbound["enable"]:
+                        remark = inbound['remark']
+                        ID = inbound['id']
+                        port = inbound['port']
+                        protocol = inbound['protocol']
+                        settings = inbound['settings']
+                        stream_settings = inbound['streamSettings']
+                        sniffing = inbound['sniffing']
+
+                        remaining_credit = calc_remaining_credit(inbound['expiryTime'])
+                        remaining_traffic = calc_remaining_traffic(inbound['up'], inbound['down'], inbound['total'])
+
+                        if round(remaining_traffic, 1) > 0:
                             status = f"{remark}({remaining_traffic} GB left)"
                         elif remaining_credit > 0:
                             status = f"{remark}({remaining_credit} days left)"
                         else:
                             status = f"{remark}(Nothing left)"
-                        users.append(status)
 
-                server.last_disabled_users = ', '.join(users)
-                server.save()
+                        disabled_inbound = Inbound(remark, ID, port, protocol, settings, stream_settings, sniffing,
+                                                   status)
+                        users.append(disabled_inbound)
+
             except ConnectionError:
-                server.last_disabled_users = f"Can't Get Inbounds of Server {server}"
-                server.save()
+                users = "ERROR"
 
-            if not server.last_disabled_users:
-                server.last_disabled_users = "All Users are Enable"
-                server.save()
+            servers_context.append({'name': server.name, 'owner': server.owner, 'expired_inbounds': users})
 
-        for i in servers:
-            print(i.name, ":", i.last_disabled_users)
-        context = {"request": request, "servers": servers}
+        context = {"request": request, 'servers_context': servers_context}
         return render(request, "status/status.html", context)
 
     else:
         return render(request, "status/status.html")
 
 
-def get_remaining_traffic(up, down, total):
+def calc_remaining_traffic(up, down, total):
     up = up / 2 ** 30
     down = down / 2 ** 30
     total = total / 2 ** 30
     return abs(round(total - up - down, 1))
 
 
-def get_remaining_credit(expiry_time):
+def calc_remaining_credit(expiry_time):
     now = datetime.now()
     expiration = datetime.fromtimestamp(expiry_time / 1000)
     return (expiration - now).days

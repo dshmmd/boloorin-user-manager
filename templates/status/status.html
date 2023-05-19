@@ -3,24 +3,36 @@
 
 {% block container %}
 
-    {% if servers %}
+    {% if servers_context %}
+
         <h2>Latest Status</h2>
         <table>
         <tr>
             <th>Owner</th>
             <th>Server</th>
-            <th>Disable Users</th>
+            <th>Expired</th>
         </tr>
 
-        {% for server in servers %}
+        {% for server in servers_context %}
             <tr>
                 <td>{{ server.owner }}</td>
                 <td>{{ server.name }}</td>
-                <td>{{ server.last_disabled_users }}</td>
+                <td>
+                    {% if not server.expired_inbounds %}
+                        All users are enable
+                    {% elif server.expired_inbounds == "ERROR" %}
+                        Can't connect to server
+                    {% else %}
+                        {% for inbound in server.expired_inbounds %}
+                            {{ inbound.remaining_status }},
+                        {% endfor %}
+                    {% endif %}
+                </td>
             </tr>
         {% endfor %}
+
     {% else %}
-    	<h1>{{ request.user }}, Ready to Check...</h1>
+        <h1>{{ request.user }}, Ready to Check...</h1>
     {% endif %}
 
 </table>
