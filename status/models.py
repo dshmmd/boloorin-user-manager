@@ -13,6 +13,7 @@ class Server(models.Model):
     owner = models.ForeignKey(User,  on_delete=models.CASCADE, default=0, related_name='server_owner')
     viewer = models.ForeignKey(User, on_delete=models.PROTECT, default=None, null=True, related_name='server_viewer')
     sort_number = models.IntegerField(default=0)
+    default_x_ui = models.BooleanField(default=True, null=True)
 
     def __str__(self):
         return self.name

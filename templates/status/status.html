@@ -1,4 +1,4 @@
-{% extends 'status/index.html' %}
+{% extends 'index.html' %}
 {% load static %}
 
 {% block container %}
@@ -40,12 +40,8 @@
         <button class="button primary-button" onclick="location.href='{% url 'check_status' %}{{ '?start=true' }}'">
             Check
         </button>
-        <button class="button secondary-button" onclick="location.href={% url 'logout_view' %}">Logout</button>
+        <button class="button dead-button" onclick="location.href='{% url 'dashboard' %}'">
+            Back
+        </button>
     </div>
 {% endblock container %}
-
-{#<div id="container">#}
-{#    <div id="text">Hover over me to see the buttons</div>#}
-{#    <button class="btn" id="btn1">Button 1</button>#}
-{#    <button class="btn" id="btn2">Button 2</button>#}
-{#</div>#}

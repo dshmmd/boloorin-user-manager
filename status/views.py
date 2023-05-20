@@ -1,14 +1,21 @@
+from .models import Server
+from .forms import AddInboundForm
 from django.shortcuts import render
 from django.contrib.auth import login, logout
 from django.contrib.auth.forms import AuthenticationForm
-from django.shortcuts import redirect, HttpResponse
+from django.shortcuts import redirect
 from django.contrib.auth.decorators import login_required
-from .models import Server
-import requests
-from datetime import datetime, timedelta
 from django.utils import timezone
 from django.db.models import Q
 from operator import attrgetter
+from urllib.parse import urlencode, quote_plus
+from datetime import datetime, timedelta
+import json
+import base64
+import random
+import uuid
+import string
+import requests
 
 
 class Inbound:
@@ -34,7 +41,7 @@ class Inbound:
 
 
 def home(request):
-    return render(request, 'status/home.html')
+    return render(request, 'home.html')
 
 
 def login_view(request):
@@ -45,19 +52,75 @@ def login_view(request):
         form = AuthenticationForm(data=request.POST)
         if form.is_valid():
             login(request, form.get_user())
-            return redirect('check_status')
+            return redirect('dashboard')
 
     form = AuthenticationForm(request)
     context = {
         "form": form,
     }
-    return render(request, "status/login.html", context)
+    return render(request, "login.html", context)
 
 
 @login_required(login_url='login_view')
 def logout_view(request):
     logout(request)
     return redirect('login_view')
+
+
+@login_required(login_url='login_view')
+def dashboard(request):
+    return render(request, 'status/dashboard.html')
+
+
+def login_to_server(host, username, password):
+    url = f"{host}/login"
+
+    payload = f'username={username}&password={password}'
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+    }
+
+    try:
+        response = requests.request("POST", url, headers=headers, data=payload)
+    except Exception:
+        raise ConnectionError
+
+    if response.status_code == 200 and response.json()['success']:
+        return response.headers.get("Set-Cookie")
+    else:
+        raise ConnectionError
+
+
+def get_inbounds_list(host, set_cookie):
+    url = f"{host}/xui/inbound/list"
+
+    payload = {}
+    headers = {
+        'Cookie': set_cookie
+    }
+
+    try:
+        response = requests.request("POST", url, headers=headers, data=payload)
+    except Exception:
+        raise ConnectionError
+
+    if response.status_code == 200 and response.json()["success"]:
+        return response.json()["obj"]
+    else:
+        raise ConnectionError
+
+
+def calc_remaining_traffic(up, down, total):
+    up = up / 2 ** 30
+    down = down / 2 ** 30
+    total = total / 2 ** 30
+    return abs(round(total - up - down, 1))
+
+
+def calc_remaining_credit(expiry_time):
+    now = datetime.now()
+    expiration = datetime.fromtimestamp(expiry_time / 1000)
+    return (expiration - now).days
 
 
 @login_required(login_url='login_view')
@@ -126,52 +189,187 @@ def check_status(request):
         return render(request, "status/status.html")
 
 
-def calc_remaining_traffic(up, down, total):
-    up = up / 2 ** 30
-    down = down / 2 ** 30
-    total = total / 2 ** 30
-    return abs(round(total - up - down, 1))
+def generate_payload(is_new, remark, total, expiry_time, domain, protocol=None,
+                     port=None, settings=None, stream_settings=None):
+    server_url = domain
 
+    if is_new:
+        if protocol == 'trojan':
+            UUID = str(''.join(random.choice(string.ascii_letters + string.digits) for _ in range(10)))
+        else:
+            UUID = str(uuid.uuid4())
 
-def calc_remaining_credit(expiry_time):
-    now = datetime.now()
-    expiration = datetime.fromtimestamp(expiry_time / 1000)
-    return (expiration - now).days
+        port = random.randint(10000, 60000)
 
-
-def get_inbounds_list(host, set_cookie):
-    url = f"{host}/xui/inbound/list"
-
-    payload = {}
-    headers = {
-        'Cookie': set_cookie
+        if protocol == 'vmess':
+            settings = {
+                "clients": [
+                    {
+                        "id": UUID,
+                        "alterId": 0
+                    }
+                ],
+                "disableInsecureEncryption": False
+            }
+            stream_settings = {
+                "network": "tcp",
+                "security": "tls",
+                "tlsSettings": {
+                    "serverName": server_url,
+                    "certificates": [
+                        {
+                            "certificateFile": "/root/cert.crt",
+                            "keyFile": "/root/private.key"
+                        }
+                    ]
+                },
+                "tcpSettings": {
+                    "header": {
+                        "type": "none"
+                    }
+                }
+            }
+        elif protocol == 'vless':
+            settings = {
+                "clients": [
+                    {
+                        "id": UUID,
+                        "flow": "xtls-rprx-direct"
+                    }
+                ],
+                "decryption": "none",
+                "fallbacks": []
+            }
+            stream_settings = {
+                "network": "tcp",
+                "security": "xtls",
+                "xtlsSettings": {
+                    "serverName": server_url,
+                    "certificates": [
+                        {
+                            "certificateFile": "/root/cert.crt",
+                            "keyFile": "/root/private.key"
+                        }
+                    ]
+                },
+                "tcpSettings": {
+                    "header": {
+                        "type": "none"
+                    }
+                }
+            }
+        else:
+            settings = {
+                "clients": [
+                    {
+                        "password": UUID,
+                        "flow": "xtls-rprx-direct"
+                    }
+                ],
+                "fallbacks": []
+            }
+            stream_settings = {
+                "network": "tcp",
+                "security": "xtls",
+                "xtlsSettings": {
+                    "serverName": server_url,
+                    "certificates": [
+                        {
+                            "certificateFile": "/root/cert.crt",
+                            "keyFile": "/root/private.key"
+                        }
+                    ]
+                },
+                "tcpSettings": {
+                    "header": {
+                        "type": "none"
+                    }
+                }
+            }
+    sniffing = {
+        "enabled": True,
+        "destOverride": [
+            "http",
+            "tls"
+        ]
     }
 
-    try:
-        response = requests.request("POST", url, headers=headers, data=payload)
-    except Exception:
-        raise ConnectionError
-
-    if response.status_code == 200 and response.json()["success"]:
-        return response.json()["obj"]
-    else:
-        raise ConnectionError
-
-
-def login_to_server(host, username, password):
-    url = f"{host}/login"
-
-    payload = f'username={username}&password={password}'
-    headers = {
-        'Content-Type': 'application/x-www-form-urlencoded',
+    data = {
+        'up': 0,
+        'down': 0,
+        'total': total * (2 ** 30),
+        'remark': remark,
+        'enable': True,
+        'expiryTime': round(expiry_time.timestamp() * 1000 - 3600000 * 3.5),
+        'port': port,
+        'protocol': protocol,
+        'settings': json.dumps(settings),
+        'streamSettings': json.dumps(stream_settings),
+        'sniffing': json.dumps(sniffing)
     }
 
-    try:
-        response = requests.request("POST", url, headers=headers, data=payload)
-    except Exception:
-        raise ConnectionError
-
-    if response.status_code == 200 and response.json()['success']:
-        return response.headers.get("Set-Cookie")
+    if protocol == 'vmess':
+        link_data = {"v": "2", "ps": remark, "add": domain, "port": port, "id": settings['clients'][0]['id'],
+                     "aid": 0, "net": "tcp", "type": "none", "host": "", "path": "", "tls": "tls"}
+        link = 'vmess://' + base64.b64encode(json.dumps(link_data).encode()).decode()
+    elif protocol == 'vless':
+        link = f"vless://{settings['clients'][0]['id']}@{domain}:{port}?" \
+               f"type=tcp&security=xtls&flow=xtls-rprx-direct#{quote_plus(remark)}"
     else:
-        raise ConnectionError
+        link = f"trojan://{settings['clients'][0]['password']}@{domain}:{port}#{quote_plus(remark)}"
+
+    return urlencode(data), link
+
+
+@login_required(login_url='login_view')
+def add_inbound(request):
+    servers = Server.objects.all() if request.user.is_staff else Server.objects.filter(owner=request.user)
+    server_name_choices = [(server.name, server.name) for server in servers]
+    form = AddInboundForm(server_name_choices=server_name_choices)
+
+    if request.method == "POST":
+        form = AddInboundForm(request.POST, server_name_choices=server_name_choices)
+        if form.is_valid():
+            server_name = form.cleaned_data['server_name']
+            remark = form.cleaned_data['remark']
+            total = form.cleaned_data['total']
+            expiry_time = form.cleaned_data['expiry_time']
+            protocol = form.cleaned_data['protocol']
+
+            server = Server.objects.get(name=server_name)
+            domain = server.host.split(':')[1].replace('/', '')
+
+            url = f"{server.host}/xui/inbound/add"
+            headers = {
+                'Cookie': server.set_cookie,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+
+            payload, link = generate_payload(True, remark, total, expiry_time, domain, protocol)
+
+            try:
+                response = requests.request("POST", url, headers=headers, data=payload)
+                if response.status_code == 200:
+                    success = True
+                    message = f"{remark} Added Successfully"
+                    context = {'success': success, 'message': message, 'link': link}
+                    return render(request, 'status/add-inbound.html', context)
+                else:
+                    raise ConnectionError
+            except ConnectionError:
+                return render(request, 'status/add-inbound.html',
+                              {'success': False, 'message': "Add Inbound Failed", 'servers': servers, 'form': form})
+        else:
+            return render(request, 'status/add-inbound.html',
+                          {'success': False, 'message': "Invalid Form", 'servers': servers, 'form': form})
+
+    return render(request, 'status/add-inbound.html',
+                  {'servers': servers, 'form': form})
+
+
+@login_required(login_url='login_view')
+def update_inbound(request):
+    if request.method == "POST":
+        return redirect('dashboard')
+    else:
+        return redirect('dashboard')

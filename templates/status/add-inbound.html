@@ -1,0 +1,58 @@
+{% extends 'index.html' %}
+{% load static %}
+
+
+{% block container %}
+    <script>
+        function copyToClipboard(element) {
+            let color = element.style.borderColor;
+            element.style.borderColor = "#ff0000";
+
+            let text = element.innerText;
+            navigator.clipboard.writeText(text);
+
+            setTimeout(function () {
+                element.style.borderColor = color;
+            }, 300);
+        }
+    </script>
+
+    {% if success == True %}
+        <h2>{{ message }}</h2>
+
+        <p id="link-id" class="vm-link" onclick="copyToClipboard(this)">
+            {{ link }}
+        </p>
+
+        <div class="button-container" style="margin-top: 10px;">
+            <button class="button primary-button" onclick="location.href='{% url 'add_inbound' %}'">Add Another
+            </button>
+            <button class="button dead-button" onclick="location.href={% url 'dashboard' %}"> Back</button>
+        </div>
+    {% else %}
+        <form method="post">
+            {% csrf_token %}
+
+            <label for="{{ form.server_name.id_for_label }}">Server Name</label>
+            {{ form.server_name }}
+
+            <label for="{{ form.remark.id_for_label }}">Remark</label>
+            {{ form.remark }}
+
+            <label for="{{ form.protocol.id_for_label }}">Protocol</label>
+            {{ form.protocol }}
+
+            <label for="{{ form.total.id_for_label }}">Traffic</label>
+            {{ form.total }}
+
+            <label for="{{ form.expiry_time.id_for_label }}">Expiry Time</label>
+            {{ form.expiry_time }}
+
+            <input class="primary-button" type="submit" value="Add" style="margin-top: 10px">
+        </form>
+
+        <div class="button-container" style="margin-top: 10px;">
+            <button class="button dead-button" onclick="location.href={% url 'dashboard' %}"> Back</button>
+        </div>
+    {% endif %}
+{% endblock container %}

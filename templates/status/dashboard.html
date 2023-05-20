@@ -1,0 +1,15 @@
+{% extends 'index.html' %}
+{% load static %}
+
+{% block container %}
+    <h1>Welcome</h1>
+    <div class="button-container">
+        <button class="button primary-button" onclick="location.href={% url 'check_status' %}">
+            Check Status
+        </button>
+        <button class="button primary-button" onclick="location.href='{% url 'add_inbound' %}'">Add Inbound</button>
+    </div>
+    <div class="button-container" style="padding-top: 10px">
+        <button class="button dead-button" onclick="location.href={% url 'logout_view' %}">Logout</button>
+    </div>
+{% endblock container %}
