@@ -91,8 +91,31 @@ def login_to_server(host, username, password):
         raise ConnectionError
 
 
-def get_inbounds_list(host, set_cookie):
-    url = f"{host}/xui/inbound/list"
+def get_set_cookie(server):
+    now = timezone.now()
+    set_cookie = server.set_cookie
+    set_cookie_expires = server.set_cookie_expires
+    error_flag = False
+    if not set_cookie or set_cookie_expires < now:
+        try:
+            set_cookie = login_to_server(server.host, server.username, server.password)
+            set_cookie_expires = now + timedelta(days=25)
+            server.set_cookie = set_cookie
+            server.set_cookie_expires = set_cookie_expires
+            server.save()
+        except ConnectionError:
+            server.last_disabled_users = f"Can't Login to Server {server}"
+            server.save()
+            error_flag = True
+    return error_flag, set_cookie
+
+
+def get_inbounds_list(server):
+    error_flag, set_cookie = get_set_cookie(server)
+    if error_flag:
+        raise ConnectionError
+
+    url = f"{server.host}/xui/inbound/list"
 
     payload = {}
     headers = {
@@ -134,24 +157,8 @@ def check_status(request):
 
         servers_context = []
         for server in servers:
-            now = timezone.now()
-            set_cookie = server.set_cookie
-            set_cookie_expires = server.set_cookie_expires
-
-            if not set_cookie or set_cookie_expires < now:
-                try:
-                    set_cookie = login_to_server(server.host, server.username, server.password)
-                    set_cookie_expires = now + timedelta(days=25)
-                    server.set_cookie = set_cookie
-                    server.set_cookie_expires = set_cookie_expires
-                    server.save()
-                except ConnectionError:
-                    server.last_disabled_users = f"Can't Login to Server {server}"
-                    server.save()
-                    continue
-
             try:
-                inbounds = get_inbounds_list(server.host, set_cookie)
+                inbounds = get_inbounds_list(server)
                 users = []
                 for inbound in inbounds:
                     if not inbound["enable"]:
@@ -190,7 +197,7 @@ def check_status(request):
 
 
 def generate_payload(is_new, remark, total, expiry_time, domain, protocol=None,
-                     port=None, settings=None, stream_settings=None):
+                     port=None, settings=None, stream_settings=None, sniffing=None):
     server_url = domain
 
     if is_new:
@@ -198,101 +205,8 @@ def generate_payload(is_new, remark, total, expiry_time, domain, protocol=None,
             UUID = str(''.join(random.choice(string.ascii_letters + string.digits) for _ in range(10)))
         else:
             UUID = str(uuid.uuid4())
-
         port = random.randint(10000, 60000)
-
-        if protocol == 'vmess':
-            settings = {
-                "clients": [
-                    {
-                        "id": UUID,
-                        "alterId": 0
-                    }
-                ],
-                "disableInsecureEncryption": False
-            }
-            stream_settings = {
-                "network": "tcp",
-                "security": "tls",
-                "tlsSettings": {
-                    "serverName": server_url,
-                    "certificates": [
-                        {
-                            "certificateFile": "/root/cert.crt",
-                            "keyFile": "/root/private.key"
-                        }
-                    ]
-                },
-                "tcpSettings": {
-                    "header": {
-                        "type": "none"
-                    }
-                }
-            }
-        elif protocol == 'vless':
-            settings = {
-                "clients": [
-                    {
-                        "id": UUID,
-                        "flow": "xtls-rprx-direct"
-                    }
-                ],
-                "decryption": "none",
-                "fallbacks": []
-            }
-            stream_settings = {
-                "network": "tcp",
-                "security": "xtls",
-                "xtlsSettings": {
-                    "serverName": server_url,
-                    "certificates": [
-                        {
-                            "certificateFile": "/root/cert.crt",
-                            "keyFile": "/root/private.key"
-                        }
-                    ]
-                },
-                "tcpSettings": {
-                    "header": {
-                        "type": "none"
-                    }
-                }
-            }
-        else:
-            settings = {
-                "clients": [
-                    {
-                        "password": UUID,
-                        "flow": "xtls-rprx-direct"
-                    }
-                ],
-                "fallbacks": []
-            }
-            stream_settings = {
-                "network": "tcp",
-                "security": "xtls",
-                "xtlsSettings": {
-                    "serverName": server_url,
-                    "certificates": [
-                        {
-                            "certificateFile": "/root/cert.crt",
-                            "keyFile": "/root/private.key"
-                        }
-                    ]
-                },
-                "tcpSettings": {
-                    "header": {
-                        "type": "none"
-                    }
-                }
-            }
-    sniffing = {
-        "enabled": True,
-        "destOverride": [
-            "http",
-            "tls"
-        ]
-    }
+        settings, stream_settings, sniffing = generate_config_settings(UUID, protocol, server_url)
 
     data = {
         'up': 0,
@@ -308,6 +222,109 @@ def generate_payload(is_new, remark, total, expiry_time, domain, protocol=None,
         'sniffing': json.dumps(sniffing)
     }
 
+    link = generate_config_link(domain, port, protocol, remark, settings)
+
+    return urlencode(data), link
+
+
+def generate_config_settings(UUID, protocol, server_url):
+    if protocol == 'vmess':
+        settings = {
+            "clients": [
+                {
+                    "id": UUID,
+                    "alterId": 0
+                }
+            ],
+            "disableInsecureEncryption": False
+        }
+        stream_settings = {
+            "network": "tcp",
+            "security": "tls",
+            "tlsSettings": {
+                "serverName": server_url,
+                "certificates": [
+                    {
+                        "certificateFile": "/root/cert.crt",
+                        "keyFile": "/root/private.key"
+                    }
+                ]
+            },
+            "tcpSettings": {
+                "header": {
+                    "type": "none"
+                }
+            }
+        }
+    elif protocol == 'vless':
+        settings = {
+            "clients": [
+                {
+                    "id": UUID,
+                    "flow": "xtls-rprx-direct"
+                }
+            ],
+            "decryption": "none",
+            "fallbacks": []
+        }
+        stream_settings = {
+            "network": "tcp",
+            "security": "xtls",
+            "xtlsSettings": {
+                "serverName": server_url,
+                "certificates": [
+                    {
+                        "certificateFile": "/root/cert.crt",
+                        "keyFile": "/root/private.key"
+                    }
+                ]
+            },
+            "tcpSettings": {
+                "header": {
+                    "type": "none"
+                }
+            }
+        }
+    else:
+        settings = {
+            "clients": [
+                {
+                    "password": UUID,
+                    "flow": "xtls-rprx-direct"
+                }
+            ],
+            "fallbacks": []
+        }
+        stream_settings = {
+            "network": "tcp",
+            "security": "xtls",
+            "xtlsSettings": {
+                "serverName": server_url,
+                "certificates": [
+                    {
+                        "certificateFile": "/root/cert.crt",
+                        "keyFile": "/root/private.key"
+                    }
+                ]
+            },
+            "tcpSettings": {
+                "header": {
+                    "type": "none"
+                }
+            }
+        }
+
+    sniffing = {
+        "enabled": True,
+        "destOverride": [
+            "http",
+            "tls"
+        ]
+    }
+    return settings, stream_settings, sniffing
+
+
+def generate_config_link(domain, port, protocol, remark, settings):
     if protocol == 'vmess':
         link_data = {"v": "2", "ps": remark, "add": domain, "port": port, "id": settings['clients'][0]['id'],
                      "aid": 0, "net": "tcp", "type": "none", "host": "", "path": "", "tls": "tls"}
@@ -317,14 +334,26 @@ def generate_payload(is_new, remark, total, expiry_time, domain, protocol=None,
                f"type=tcp&security=xtls&flow=xtls-rprx-direct#{quote_plus(remark)}"
     else:
         link = f"trojan://{settings['clients'][0]['password']}@{domain}:{port}#{quote_plus(remark)}"
-
-    return urlencode(data), link
+    return link
 
 
 @login_required(login_url='login_view')
 def add_inbound(request):
-    servers = Server.objects.all() if request.user.is_staff else Server.objects.filter(owner=request.user)
-    server_name_choices = [(server.name, server.name) for server in servers]
+    if request.user.is_staff:
+        servers = Server.objects.filter(default_x_ui=True)
+    else:
+        servers = Server.objects.filter(Q(owner=request.user) & Q(default_x_ui=True))
+
+    server_name_choices = []
+
+    for server in servers:
+        try:
+            inbounds_count = len(get_inbounds_list(server))
+            server_name_choices.append((server.name, f"{server.name} ({inbounds_count} inbounds)"))
+        except ConnectionError:
+            server_name_choices.append((server.name, f"{server.name} (? inbounds)"))
+            continue
+
     form = AddInboundForm(server_name_choices=server_name_choices)
 
     if request.method == "POST":
