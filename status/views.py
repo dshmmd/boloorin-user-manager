@@ -341,8 +341,10 @@ def generate_config_link(domain, port, protocol, remark, settings):
 def add_inbound(request):
     if request.user.is_staff:
         servers = Server.objects.filter(default_x_ui=True)
+        servers = sorted(servers, key=attrgetter('username', 'sort_number'))
     else:
         servers = Server.objects.filter(Q(owner=request.user) & Q(default_x_ui=True))
+        servers = sorted(servers, key=attrgetter('sort_number'))
 
     server_name_choices = []
 
