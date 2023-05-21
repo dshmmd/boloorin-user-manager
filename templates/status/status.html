@@ -22,12 +22,12 @@
                         Can't connect to server
                     {% else %}
                         {% for inbound in server.expired_inbounds %}
-                            <a href="#" id="expired-inbound"
-                               class="link-success" style="text-underline-offset: 2px"
+                            <a href="#" style="text-underline-offset: 2px"
+                               class="expired-inbound font-weight-bold"
                                data-status="{{ inbound.remaining_status }}"
                                data-toggle="modal" data-target="#inboundModal">
                                 {{ inbound.remaining_status }}
-                            </a>
+                            </a>,
                         {% endfor %}
 
                     {% endif %}
@@ -84,7 +84,7 @@
 
     <script>
         $(function () {
-            $("#expired-inbound").on("click", function () {
+            $(".expired-inbound").on("click", function () {
                 $("#inboundModalLabel").text($(this).data("status"));
             });
         });
