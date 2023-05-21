@@ -4,7 +4,6 @@
 {% block container %}
 
     {% if servers_context %}
-
         <h2>Latest Status</h2>
         <table>
         <tr>
@@ -12,30 +11,68 @@
             <th>Server</th>
             <th>Expired</th>
         </tr>
-
         {% for server in servers_context %}
             <tr>
                 <td>{{ server.owner }}</td>
                 <td>{{ server.name }}</td>
                 <td>
-                    {% if not server.expired_inbounds %}
+                    {% if server.expired_inbounds == "EMPTY" %}
                         All users are enable
                     {% elif server.expired_inbounds == "ERROR" %}
                         Can't connect to server
                     {% else %}
                         {% for inbound in server.expired_inbounds %}
-                            {{ inbound.remaining_status }},
+                            <a href="#" id="expired-inbound"
+                               class="link-success" style="text-underline-offset: 2px"
+                               data-status="{{ inbound.remaining_status }}"
+                               data-toggle="modal" data-target="#inboundModal">
+                                {{ inbound.remaining_status }}
+                            </a>
                         {% endfor %}
+
                     {% endif %}
                 </td>
             </tr>
         {% endfor %}
-
     {% else %}
         <h1>Ready to Check...</h1>
     {% endif %}
 
 </table>
+
+    <div class="modal fade" id="inboundModal" tabindex="-1" aria-labelledby="inboundModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header justify-content-center">
+                    <h4 class="modal-title fs-5" id="inboundModalLabel"></h4>
+                </div>
+                <div class="modal-body justify-content-center">
+                    <h5>You can renew & delete your inbounds soon</h5>
+                    {#                    <form method="post">#}
+                    {#                        {% csrf_token %}#}
+                    {##}
+                    {#                        <div class="mb-1">#}
+                    {#                            <label for="recipient-name" class="col-form-label">Recipient:</label>#}
+                    {#                            <input type="text" class="form-control" id="recipient-name">#}
+                    {#                        </div>#}
+                    {#                        <div class="mb-1">#}
+                    {#                            <label for="message-text" class="col-form-label">Message:</label>#}
+                    {#                            <textarea class="form-control" id="message-text"></textarea>#}
+                    {#                        </div>#}
+                    {#                    </form>#}
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn btn-danger" onclick="deleteInbound()" data-bs-dismiss="modal">
+                        Delete Inbound
+                    </button>
+                    <button type="button" class="btn btn-success" onclick="renewInbound()">
+                        Renew Inbound
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="button-container">
         <button class="button primary-button" onclick="location.href='{% url 'check_status' %}{{ '?start=true' }}'">
             Check
@@ -44,4 +81,20 @@
             Back
         </button>
     </div>
+
+    <script>
+        $(function () {
+            $("#expired-inbound").on("click", function () {
+                $("#inboundModalLabel").text($(this).data("status"));
+            });
+        });
+        function deleteInbound() {
+            console.log('Deleting inbound');
+            $("#inboundModal").modal("hide");
+        }
+        function renewInbound() {
+            console.log('Renewing inbound');
+            $("#inboundModal").modal("hide");
+        }
+    </script>
 {% endblock container %}

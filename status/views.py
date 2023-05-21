@@ -184,6 +184,8 @@ def check_status(request):
                                                    status)
                         users.append(disabled_inbound)
 
+                if not users:
+                    users = "EMPTY"
             except ConnectionError:
                 users = "ERROR"
 
@@ -344,7 +346,7 @@ def add_inbound(request):
         servers = sorted(servers, key=attrgetter('username', 'sort_number'))
     else:
         servers = Server.objects.filter(Q(owner=request.user) & Q(default_x_ui=True))
-        servers = sorted(servers, key=attrgetter('sort_number'))
+        servers = sorted(servers, key=attrgetter('username', 'sort_number'))
 
     server_name_choices = []
 
