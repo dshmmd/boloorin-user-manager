@@ -46,7 +46,7 @@ def home(request):
 
 def login_view(request):
     if request.user.is_authenticated:
-        return redirect('check_status')
+        return redirect('dashboard')
 
     if request.method == "POST":
         form = AuthenticationForm(data=request.POST)
