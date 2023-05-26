@@ -18,26 +18,26 @@ import string
 import requests
 
 
-class Inbound:
-    inbounds = []
-
-    def __init__(self, remark, inbound_id, port, protocol, settings, stream_settings, sniffing, remaining_status):
-        self.inbound_id = inbound_id
-        self.remark = remark
-        self.port = port
-        self.protocol = protocol
-        self.settings = settings
-        self.stream_settings = stream_settings
-        self.sniffing = sniffing
-        self.remaining_status = remaining_status
-        self.inbounds.append(self)
-
-    def __str__(self):
-        return self.remark
-
-    @classmethod
-    def get_inbound_by_id(cls, inbound_id):
-        return [inbound for inbound in cls.inbounds if inbound.inbound_id == inbound_id]
+# class Inbound:
+#     inbounds = []
+#
+#     def __init__(self, remark, inbound_id, port, protocol, settings, stream_settings, sniffing, remaining_status):
+#         self.inbound_id = inbound_id
+#         self.remark = remark
+#         self.port = port
+#         self.protocol = protocol
+#         self.settings = settings
+#         self.stream_settings = stream_settings
+#         self.sniffing = sniffing
+#         self.remaining_status = remaining_status
+#         self.inbounds.append(self)
+#
+#     def __str__(self):
+#         return self.remark
+#
+#     @classmethod
+#     def get_inbound_by_id(cls, inbound_id):
+#         return [inbound for inbound in cls.inbounds if inbound.inbound_id == inbound_id]
 
 
 def home(request):
@@ -104,7 +104,7 @@ def get_set_cookie(server):
             server.set_cookie_expires = set_cookie_expires
             server.save()
         except ConnectionError:
-            server.last_disabled_users = f"Can't Login to Server {server}"
+            server.last_disabled_users = f"ERROR"
             server.save()
             error_flag = True
     return error_flag, set_cookie
@@ -159,7 +159,8 @@ def check_status(request):
         for server in servers:
             try:
                 inbounds = get_inbounds_list(server)
-                users = []
+                disabled_inbounds = []
+                disabled_inbounds_json = {}
                 for inbound in inbounds:
                     if not inbound["enable"]:
                         remark = inbound['remark']
@@ -180,16 +181,23 @@ def check_status(request):
                         else:
                             status = f"{remark}(Nothing left)"
 
-                        disabled_inbound = Inbound(remark, ID, port, protocol, settings, stream_settings, sniffing,
-                                                   status)
-                        users.append(disabled_inbound)
+                        disabled_inbound = {"remaining_status": status, "port": port}
+                        disabled_inbounds.append(disabled_inbound)
+                        disabled_inbounds_json[port] = inbound
 
-                if not users:
-                    users = "EMPTY"
+                if not disabled_inbounds:
+                    disabled_inbounds = "EMPTY"
+                    disabled_inbounds_json = {}
             except ConnectionError:
-                users = "ERROR"
+                disabled_inbounds = "ERROR"
+                disabled_inbounds_json = {}
+                server.last_disabled_users = json.dumps(disabled_inbounds_json)
+                server.save()
 
-            servers_context.append({'name': server.name, 'owner': server.owner, 'expired_inbounds': users})
+            servers_context.append(
+                {'name': server.name, 'owner': server.owner, 'expired_inbounds': disabled_inbounds, 'address': server.host})
+            server.last_disabled_users = str(json.dumps(disabled_inbounds_json))
+            server.save()
 
         context = {"request": request, 'servers_context': servers_context}
         return render(request, "status/status.html", context)
@@ -343,10 +351,9 @@ def generate_config_link(domain, port, protocol, remark, settings):
 def add_inbound(request):
     if request.user.is_staff:
         servers = Server.objects.filter(default_x_ui=True)
-        servers = sorted(servers, key=attrgetter('username', 'sort_number'))
     else:
         servers = Server.objects.filter(Q(owner=request.user) & Q(default_x_ui=True))
-        servers = sorted(servers, key=attrgetter('username', 'sort_number'))
+    servers = sorted(servers, key=attrgetter('username', 'sort_number'))
 
     server_name_choices = []
 
@@ -390,8 +397,9 @@ def add_inbound(request):
                 else:
                     raise ConnectionError
             except ConnectionError:
-                return render(request, 'status/add-inbound.html',
-                              {'success': False, 'message': "Add Inbound Failed", 'servers': servers, 'form': form})
+                context = {'success': False, 'message': "Add Inbound Failed", 'servers': servers, 'form': form}
+                return render(request, 'status/add-inbound.html', context)
+
         else:
             return render(request, 'status/add-inbound.html',
                           {'success': False, 'message': "Invalid Form", 'servers': servers, 'form': form})
