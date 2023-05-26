@@ -137,7 +137,7 @@ def calc_remaining_traffic(up, down, total):
     up = up / 2 ** 30
     down = down / 2 ** 30
     total = total / 2 ** 30
-    return abs(round(total - up - down, 1))
+    return round(total - up - down, 1)
 
 
 def calc_remaining_credit(expiry_time):
@@ -165,12 +165,6 @@ def check_status(request):
                     if not inbound["enable"]:
                         remark = inbound['remark']
                         ID = inbound['id']
-                        port = inbound['port']
-                        protocol = inbound['protocol']
-                        settings = inbound['settings']
-                        stream_settings = inbound['streamSettings']
-                        sniffing = inbound['sniffing']
-
                         remaining_credit = calc_remaining_credit(inbound['expiryTime'])
                         remaining_traffic = calc_remaining_traffic(inbound['up'], inbound['down'], inbound['total'])
 
@@ -181,9 +175,9 @@ def check_status(request):
                         else:
                             status = f"{remark}(Nothing left)"
 
-                        disabled_inbound = {"remaining_status": status, "port": port}
+                        disabled_inbound = {"remaining_status": status, "id": ID}
                         disabled_inbounds.append(disabled_inbound)
-                        disabled_inbounds_json[port] = inbound
+                        disabled_inbounds_json[ID] = inbound
 
                 if not disabled_inbounds:
                     disabled_inbounds = "EMPTY"
@@ -194,8 +188,12 @@ def check_status(request):
                 server.last_disabled_users = json.dumps(disabled_inbounds_json)
                 server.save()
 
-            servers_context.append(
-                {'name': server.name, 'owner': server.owner, 'expired_inbounds': disabled_inbounds, 'address': server.host})
+            servers_context.append({
+                'name': server.name,
+                'owner': server.owner,
+                'expired_inbounds': disabled_inbounds,
+                'address': server.host
+            })
             server.last_disabled_users = str(json.dumps(disabled_inbounds_json))
             server.save()
 
