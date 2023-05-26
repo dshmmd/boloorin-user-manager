@@ -5,6 +5,7 @@
 
     {% if servers_context %}
         <h2>Latest Status</h2>
+        <div id="actionAlert"></div>
         <table>
         <tr>
             <th>Owner</th>
@@ -24,7 +25,9 @@
                         {% for inbound in server.expired_inbounds %}
                             <a href="#" style="text-underline-offset: 2px"
                                class="expired-inbound font-weight-bold"
-                               data-status="{{ inbound.remaining_status }}"
+                               data-remark="{{ inbound.remaining_status }}"
+                               data-id="{{ inbound.id }}" ,
+                               data-server="{{ server.name }}"
                                data-toggle="modal" data-target="#inboundModal">
                                 {{ inbound.remaining_status }}
                             </a>,
@@ -46,26 +49,16 @@
                 <div class="modal-header justify-content-center">
                     <h4 class="modal-title fs-5" id="inboundModalLabel"></h4>
                 </div>
-                <div class="modal-body justify-content-center">
-                    <h5>You can renew & delete your inbounds soon</h5>
-                    {#                    <form method="post">#}
-                    {#                        {% csrf_token %}#}
-                    {##}
-                    {#                        <div class="mb-1">#}
-                    {#                            <label for="recipient-name" class="col-form-label">Recipient:</label>#}
-                    {#                            <input type="text" class="form-control" id="recipient-name">#}
-                    {#                        </div>#}
-                    {#                        <div class="mb-1">#}
-                    {#                            <label for="message-text" class="col-form-label">Message:</label>#}
-                    {#                            <textarea class="form-control" id="message-text"></textarea>#}
-                    {#                        </div>#}
-                    {#                    </form>#}
+                <div class="modal-body" align="center">
+                    <h5 id="inboundDetails"></h5>
+                    <label for="trafficInput">Traffic:</label>
+                    <input type="number" id="trafficInput" name="trafficInput" value="0" style="width: 75px">
                 </div>
                 <div class="modal-footer justify-content-center">
-                    <button type="button" class="btn btn-danger" onclick="deleteInbound()" data-bs-dismiss="modal">
+                    <button type="button" class="btn btn-danger" id="inboundDelBtn" data-bs-dismiss="modal">
                         Delete Inbound
                     </button>
-                    <button type="button" class="btn btn-success" onclick="renewInbound()">
+                    <button type="button" class="btn btn-success" id="inboundRenBtn" data-bs-dismiss="modal">
                         Renew Inbound
                     </button>
                 </div>
@@ -83,18 +76,85 @@
     </div>
 
     <script>
+        const alertPlaceholder = document.getElementById('actionAlert');
+        const appendAlert = (message, type) => {
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = `<div class="alert alert-${type} alert-dismissible" role="alert">${message}</div>`;
+            alertPlaceholder.append(wrapper);
+
+            let opacity = 1;
+            const interval = setInterval(() => {
+                opacity -= 0.035;
+                wrapper.style.opacity = opacity;
+                if (opacity <= 0) {
+                    clearInterval(interval);
+                    wrapper.remove();
+                }
+            }, 100);
+        };
+
+
         $(function () {
             $(".expired-inbound").on("click", function () {
-                $("#inboundModalLabel").text($(this).data("status"));
+                let server = $(this).data("server")
+                let remark = $(this).data("remark")
+                let id = $(this).data("id")
+                $("#inboundModalLabel").text(remark);
+
+                $("#inboundRenBtn").off('click').on("click", function () {
+                    renewInbound(server, id)
+                });
+                $("#inboundDelBtn").off('click').on("click", function () {
+                    deleteInbound(server, id)
+                });
+
             });
         });
-        function deleteInbound() {
-            console.log('Deleting inbound');
+
+        function renewInbound(server, id) {
+            let traffic = document.getElementById("trafficInput").value
             $("#inboundModal").modal("hide");
+
+            $.ajax({
+                url: '/check-status/renew-inbound/',
+                type: 'POST',
+                data: {
+                    'server': server,
+                    'id': id,
+                    'traffic': traffic,
+                    'csrfmiddlewaretoken': '{{ csrf_token }}',
+                },
+                success: function (response) {
+                    appendAlert(response.message, "success")
+                },
+                error: function (xhr, status, error) {
+                    alert('An error occurred: ' + error);
+                }
+            });
+
+            //$("a[data-server='" + server + "'][data-id='" + id + "']").remove();
         }
-        function renewInbound() {
-            console.log('Renewing inbound');
+
+        function deleteInbound(server, id) {
             $("#inboundModal").modal("hide");
+
+            $.ajax({
+                url: '/check-status/delete-inbound/',
+                type: 'POST',
+                data: {
+                    'server': server,
+                    'id': id,
+                    'csrfmiddlewaretoken': '{{ csrf_token }}',
+                },
+                success: function (response) {
+                    appendAlert(response.message, "success")
+                },
+                error: function (xhr, status, error) {
+                    alert('An error occurred: ' + error);
+                }
+            });
+
+            //$("a[data-server='" + server + "'][data-id='" + id + "']").remove();
         }
     </script>
 {% endblock container %}

@@ -15,7 +15,3 @@ class AddInboundForm(forms.Form):
     protocol = forms.ChoiceField(choices=[('vmess', 'vmess-tcp-tls'),
                                           ('vless', 'vless-tcp-xtls'),
                                           ('trojan', 'trojan-tcp-xtls')])
-
-
-class RenewInboundForm(forms.Form):
-    pass

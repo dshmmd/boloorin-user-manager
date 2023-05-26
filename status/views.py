@@ -3,6 +3,8 @@ from .forms import AddInboundForm
 from django.shortcuts import render
 from django.contrib.auth import login, logout
 from django.contrib.auth.forms import AuthenticationForm
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import redirect
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
@@ -204,7 +206,7 @@ def check_status(request):
         return render(request, "status/status.html")
 
 
-def generate_payload(is_new, remark, total, expiry_time, domain, protocol=None,
+def generate_payload(is_new, remark, total, expiry_time, domain, protocol,
                      port=None, settings=None, stream_settings=None, sniffing=None):
     server_url = domain
 
@@ -406,9 +408,24 @@ def add_inbound(request):
                   {'servers': servers, 'form': form})
 
 
-@login_required(login_url='login_view')
-def update_inbound(request):
-    if request.method == "POST":
-        return redirect('dashboard')
-    else:
-        return redirect('dashboard')
+@csrf_exempt
+def renew_inbound(request):
+    if request.method == 'POST':
+        server_name = request.POST.get("server")
+        inbound_id = request.POST.get("id")
+        traffic = request.POST.get("traffic")
+        result = f'Renew inbound: {inbound_id}, from server: {server_name} for {traffic}GB'
+        print(result)
+        return JsonResponse({'message': result}, status=200)
+    return JsonResponse({'message': 'Invalid method'}, status=400)
+
+
+@csrf_exempt
+def delete_inbound(request):
+    if request.method == 'POST':
+        server_name = request.POST.get("server")
+        inbound_id = request.POST.get("id")
+        result = f'Delete Inbound: {inbound_id}, from server: {server_name}'
+        print(result)
+        return JsonResponse({'message': result}, status=200)
+    return JsonResponse({'message': 'Invalid method'}, status=400)
