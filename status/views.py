@@ -20,28 +20,6 @@ import string
 import requests
 
 
-# class Inbound:
-#     inbounds = []
-#
-#     def __init__(self, remark, inbound_id, port, protocol, settings, stream_settings, sniffing, remaining_status):
-#         self.inbound_id = inbound_id
-#         self.remark = remark
-#         self.port = port
-#         self.protocol = protocol
-#         self.settings = settings
-#         self.stream_settings = stream_settings
-#         self.sniffing = sniffing
-#         self.remaining_status = remaining_status
-#         self.inbounds.append(self)
-#
-#     def __str__(self):
-#         return self.remark
-#
-#     @classmethod
-#     def get_inbound_by_id(cls, inbound_id):
-#         return [inbound for inbound in cls.inbounds if inbound.inbound_id == inbound_id]
-
-
 def home(request):
     return render(request, 'home.html')
 
@@ -416,6 +394,7 @@ def renew_inbound(request):
         traffic = request.POST.get("traffic")
         result = f'Renew inbound: {inbound_id}, from server: {server_name} for {traffic}GB'
         print(result)
+        # TODO: Implement renewing
         return JsonResponse({'message': result}, status=200)
     return JsonResponse({'message': 'Invalid method'}, status=400)
 
@@ -427,5 +406,6 @@ def delete_inbound(request):
         inbound_id = request.POST.get("id")
         result = f'Delete Inbound: {inbound_id}, from server: {server_name}'
         print(result)
+        # TODO: Implement deleting
         return JsonResponse({'message': result}, status=200)
     return JsonResponse({'message': 'Invalid method'}, status=400)
